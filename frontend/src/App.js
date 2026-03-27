@@ -1,114 +1,223 @@
-import { useState } from "react";
-import Dashboard from "./pages/Dashboard";
-import Patients from "./pages/Patients";
-import Doctors from "./pages/Doctors";
-import Appointments from "./pages/Appointments";
-import Prescriptions from "./pages/Prescriptions";
-import LabResults from "./pages/LabResults";
-import Payments from "./pages/Payments";
+import React, { useState } from 'react';
+import Dashboard from './pages/Dashboard';
+import Patients from './pages/Patients';
+import Doctors from './pages/Doctors';
+import Appointments from './pages/Appointments';
+import Prescriptions from './pages/Prescriptions';
+import LabResults from './pages/LabResults';
+import Payments from './pages/Payments';
+import './styles/App.css';
 
-const NAV = [
-  { id: "dashboard",     label: "Dashboard",     icon: "⬛", color: "#6366f1" },
-  { id: "patients",      label: "Patients",       icon: "🟦", color: "#0ea5e9" },
-  { id: "doctors",       label: "Doctors",        icon: "🟩", color: "#10b981" },
-  { id: "appointments",  label: "Appointments",   icon: "🟧", color: "#f59e0b" },
-  { id: "prescriptions", label: "Prescriptions",  icon: "🟥", color: "#ef4444" },
-  { id: "lab",           label: "Lab Results",    icon: "🟪", color: "#8b5cf6" },
-  { id: "payments",      label: "Payments",       icon: "🟫", color: "#14b8a6" },
+const NAV_ITEMS = [
+    { id: "dashboard", label: "Dashboard", icon: "📊", color: "#6366f1" },
+    { id: "patients", label: "Patients", icon: "👥", color: "#3b82f6" },
+    { id: "doctors", label: "Doctors", icon: "👨‍⚕️", color: "#10b981" },
+    { id: "appointments", label: "Appointments", icon: "📅", color: "#f59e0b" },
+    { id: "prescriptions", label: "Prescriptions", icon: "💊", color: "#ef4444" },
+    { id: "lab", label: "Lab Results", icon: "🔬", color: "#8b5cf6" },
+    { id: "payments", label: "Payments", icon: "💰", color: "#14b8a6" },
 ];
 
 const PAGES = {
-  dashboard:     Dashboard,
-  patients:      Patients,
-  doctors:       Doctors,
-  appointments:  Appointments,
-  prescriptions: Prescriptions,
-  lab:           LabResults,
-  payments:      Payments,
+    dashboard: Dashboard,
+    patients: Patients,
+    doctors: Doctors,
+    appointments: Appointments,
+    prescriptions: Prescriptions,
+    lab: LabResults,
+    payments: Payments,
 };
 
 export default function App() {
-  const [page, setPage]       = useState("dashboard");
-  const [collapsed, setCollapsed] = useState(false);
+    const [currentPage, setCurrentPage] = useState("dashboard");
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const PageComponent = PAGES[currentPage];
 
-  const Page = PAGES[page];
+    const closeSidebar = () => setSidebarOpen(false);
 
-  return (
-    <div style={s.root}>
-      {/* SIDEBAR */}
-      <aside style={{ ...s.sidebar, width: collapsed ? 64 : 220 }}>
-        <div style={s.brand} onClick={() => setCollapsed(!collapsed)}>
-          <span style={s.brandIcon}>✚</span>
-          {!collapsed && <span style={s.brandText}>MediCore</span>}
-        </div>
-
-        <nav style={s.nav}>
-          {NAV.map(item => (
-            <button
-              key={item.id}
-              style={{
-                ...s.navBtn,
-                background: page === item.id ? "rgba(255,255,255,0.12)" : "transparent",
-                borderLeft: page === item.id ? `3px solid ${item.color}` : "3px solid transparent",
-              }}
-              onClick={() => setPage(item.id)}
-              title={item.label}
+    return (
+        <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc", fontFamily: "'Inter', sans-serif" }}>
+            {/* Mobile Overlay */}
+            {sidebarOpen && (
+                <div
+                    className="mobile-menu-overlay"
+                    onClick={closeSidebar}
+                    style={{
+                        position: "fixed",
+                        inset: 0,
+                        background: "rgba(0,0,0,0.4)",
+                        backdropFilter: "blur(2px)",
+                        zIndex: 998,
+                    }}
+                />
+            )}
+            
+            {/* Sidebar */}
+            <aside
+                className="sidebar"
+                style={{
+                    position: "fixed",
+                    top: 0,
+                    left: 0,
+                    bottom: 0,
+                    width: 260,
+                    background: "#ffffff",
+                    transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)",
+                    transition: "transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1)",
+                    zIndex: 1000,
+                    boxShadow: "2px 0 20px rgba(0,0,0,0.03)",
+                    borderRight: "1px solid #eff3f6",
+                    display: "flex",
+                    flexDirection: "column",
+                    overflowY: "auto",
+                }}
             >
-              <span style={{ fontSize: 16, minWidth: 20 }}>{item.icon}</span>
-              {!collapsed && <span style={s.navLabel}>{item.label}</span>}
-            </button>
-          ))}
-        </nav>
-
-        <div style={s.sideFooter}>
-          {!collapsed && <span style={s.sideFooterTxt}>Healthcare System v1.0</span>}
+                <div style={{
+                    padding: "24px 20px",
+                    borderBottom: "1px solid #f0f2f5",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                }}>
+                    <span style={{
+                        fontSize: 28,
+                        fontWeight: 800,
+                        background: "linear-gradient(135deg, #0f172a, #2d3a5e)",
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                    }}>
+                        ✚
+                    </span>
+                    <span style={{ fontSize: 19, fontWeight: 700, color: "#0f172a" }}>MediCore</span>
+                </div>
+                
+                <nav style={{ flex: 1, padding: "20px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
+                    {NAV_ITEMS.map(item => (
+                        <button
+                            key={item.id}
+                            onClick={() => {
+                                setCurrentPage(item.id);
+                                closeSidebar();
+                            }}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 12,
+                                padding: "10px 16px",
+                                borderRadius: 14,
+                                border: "none",
+                                width: "100%",
+                                textAlign: "left",
+                                background: currentPage === item.id ? "#f1f5f9" : "transparent",
+                                color: currentPage === item.id ? item.color : "#475569",
+                                fontWeight: currentPage === item.id ? 600 : 500,
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                                fontSize: 14,
+                                transition: "all 0.1s",
+                            }}
+                        >
+                            <span style={{ fontSize: 18 }}>{item.icon}</span>
+                            <span>{item.label}</span>
+                        </button>
+                    ))}
+                </nav>
+                
+                <div style={{
+                    padding: "20px",
+                    borderTop: "1px solid #f0f2f5",
+                    fontSize: 11,
+                    color: "#94a3b8",
+                    textAlign: "center",
+                }}>
+                    v2.0 · Microservices
+                </div>
+            </aside>
+            
+            {/* Main Content */}
+            <main style={{
+                flex: 1,
+                marginLeft: 0,
+                width: "100%",
+                transition: "margin 0.2s",
+                display: "flex",
+                flexDirection: "column",
+                minHeight: "100vh",
+            }}>
+                <header style={{
+                    background: "#ffffff",
+                    borderBottom: "1px solid #eff3f6",
+                    padding: "0 24px",
+                    height: 64,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    position: "sticky",
+                    top: 0,
+                    zIndex: 99,
+                    backdropFilter: "blur(12px)",
+                    background: "rgba(255,255,255,0.92)",
+                }}>
+                    <button
+                        className="menu-toggle"
+                        onClick={() => setSidebarOpen(true)}
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            background: "none",
+                            border: "none",
+                            fontSize: 22,
+                            cursor: "pointer",
+                            padding: 8,
+                            borderRadius: 40,
+                            color: "#1e293b",
+                        }}
+                    >
+                        ☰
+                    </button>
+                    <div style={{ fontWeight: 600, fontSize: 15, color: "#1f2a44" }}>
+                        {NAV_ITEMS.find(n => n.id === currentPage)?.label || "Dashboard"}
+                    </div>
+                    <div style={{
+                        background: "#ecfdf5",
+                        padding: "5px 14px",
+                        borderRadius: 40,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: "#0b5e42",
+                    }}>
+                        ⚡ API:8000
+                    </div>
+                </header>
+                
+                <div style={{
+                    padding: "28px 24px",
+                    flex: 1,
+                    overflowY: "auto",
+                    maxWidth: 1600,
+                    margin: "0 auto",
+                    width: "100%",
+                }}>
+                    <PageComponent />
+                </div>
+            </main>
+            
+            <style>{`
+                @media (min-width: 1024px) {
+                    .sidebar {
+                        transform: translateX(0) !important;
+                        position: sticky !important;
+                    }
+                    .menu-toggle {
+                        display: none !important;
+                    }
+                }
+                @media (max-width: 1023px) {
+                    .sidebar {
+                        box-shadow: 0 20px 35px rgba(0,0,0,0.1);
+                    }
+                }
+            `}</style>
         </div>
-      </aside>
-
-      {/* MAIN */}
-      <main style={s.main}>
-        {/* TOP BAR */}
-        <header style={s.topbar}>
-          <div style={s.topTitle}>
-            {NAV.find(n => n.id === page)?.label}
-          </div>
-          <div style={s.topRight}>
-            <div style={s.apiPill}>API Gateway · Port 8000</div>
-          </div>
-        </header>
-
-        {/* PAGE CONTENT */}
-        <div style={s.content}>
-          <Page />
-        </div>
-      </main>
-    </div>
-  );
+    );
 }
-
-const s = {
-  root:        { display: "flex", minHeight: "100vh", background: "#f1f5f9", fontFamily: "'DM Sans', 'Segoe UI', sans-serif" },
-  sidebar:     { background: "#0f172a", display: "flex", flexDirection: "column",
-                 transition: "width .25s ease", flexShrink: 0, overflow: "hidden" },
-  brand:       { display: "flex", alignItems: "center", gap: 10, padding: "20px 16px",
-                 cursor: "pointer", borderBottom: "1px solid rgba(255,255,255,.07)" },
-  brandIcon:   { fontSize: 22, color: "#38bdf8", fontWeight: 900 },
-  brandText:   { color: "#f8fafc", fontSize: 18, fontWeight: 700, letterSpacing: "-0.5px", whiteSpace: "nowrap" },
-  nav:         { flex: 1, padding: "12px 0", display: "flex", flexDirection: "column", gap: 2 },
-  navBtn:      { display: "flex", alignItems: "center", gap: 12, padding: "11px 16px",
-                 border: "none", cursor: "pointer", color: "#cbd5e1", fontSize: 13,
-                 fontWeight: 500, textAlign: "left", transition: "all .15s", width: "100%",
-                 fontFamily: "inherit" },
-  navLabel:    { whiteSpace: "nowrap" },
-  sideFooter:  { padding: "14px 16px", borderTop: "1px solid rgba(255,255,255,.07)" },
-  sideFooterTxt: { color: "#475569", fontSize: 11 },
-  main:        { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" },
-  topbar:      { background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "0 28px",
-                 height: 60, display: "flex", alignItems: "center", justifyContent: "space-between",
-                 flexShrink: 0 },
-  topTitle:    { fontSize: 17, fontWeight: 700, color: "#0f172a" },
-  topRight:    { display: "flex", alignItems: "center", gap: 12 },
-  apiPill:     { background: "#f0fdf4", color: "#15803d", fontSize: 12, fontWeight: 600,
-                 padding: "5px 12px", borderRadius: 20, border: "1px solid #bbf7d0" },
-  content:     { flex: 1, padding: "24px 28px", overflowY: "auto" },
-};

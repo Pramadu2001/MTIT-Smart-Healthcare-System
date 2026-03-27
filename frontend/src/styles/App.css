@@ -1,0 +1,50 @@
+:root {
+    --sidebar-width: 260px;
+    --primary-color: #0f172a;
+    --secondary-color: #6366f1;
+    --success-color: #10b981;
+    --danger-color: #ef4444;
+    --warning-color: #f59e0b;
+    --info-color: #3b82f6;
+}
+
+/* Responsive breakpoints */
+@media (max-width: 768px) {
+    .mobile-sidebar-open {
+        overflow: hidden;
+    }
+}
+
+@media (min-width: 1024px) {
+    .sidebar {
+        transform: translateX(0) !important;
+        position: sticky !important;
+    }
+    
+    .menu-toggle {
+        display: none;
+    }
+}
+
+@media (max-width: 1023px) {
+    .sidebar {
+        box-shadow: 0 20px 35px rgba(0, 0, 0, 0.1);
+    }
+}
+
+/* Grid layouts */
+.content-grid {
+    display: grid;
+    gap: 24px;
+}
+
+@media (min-width: 1440px) {
+    .content-grid-4 {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+/* Smooth transitions */
+.smooth-transition {
+    transition: all 0.2s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+}
