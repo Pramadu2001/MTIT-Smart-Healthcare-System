@@ -1,16 +1,6 @@
-from fastapi import FastAPI, Request, HTTPException, Response
+from fastapi import FastAPI, Request, HTTPException, Response, Body
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
-
-app = FastAPI(title ="Medicore-Healthcare-System")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Service registry - all microservice base URLs
 SERVICES = {
@@ -21,6 +11,27 @@ SERVICES = {
     "lab-results":   "http://localhost:8005",
     "payments":      "http://localhost:8006",
 }
+
+tags_metadata = [
+    {
+        "name": svc.capitalize().replace("-", " "),
+        "description": f"Manage {svc[:-1] if svc.endswith('s') else svc} details"
+    } for svc in SERVICES.keys()
+]
+
+app = FastAPI(
+    title="Medicore-Healthcare-System API Gateway",
+    description="Centralized API Gateway routing to localized microservices cleanly.",
+    openapi_tags=tags_metadata
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 async def proxy_request(service: str, path: str = "", method: str = "GET", data=None):
     if service not in SERVICES:
@@ -39,14 +50,15 @@ async def proxy_request(service: str, path: str = "", method: str = "GET", data=
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/")
+
+@app.get("/", tags=["Gateway System Info"])
 async def gateway_root():
     return {
         "status": "online", 
         "message": "Welcome to the MediCore API Gateway. The system is running successfully."
     }
 
-@app.get("/health")
+@app.get("/health", tags=["Gateway System Info"])
 async def health():
     statuses = {}
     async with httpx.AsyncClient() as client:
@@ -58,27 +70,45 @@ async def health():
                 statuses[name] = "DOWN"
     return {"gateway": "UP", "services": statuses}
 
-# ── Generic routes ──────────────────────────────────────────────
 
-@app.api_route("/{service}", methods=["GET", "POST"])
-async def gateway_base(service: str, request: Request):
-    data = None
-    if request.method in ["POST"]:
-        try:
-            data = await request.json()
-        except:
-            pass
-    return await proxy_request(service, method=request.method, data=data)
+# ── Dynamically Generate & Group Routes for Swagger (/docs) ───
 
-@app.api_route("/{service}/{id}", methods=["GET", "PUT", "DELETE"])
-async def gateway_item(service: str, id: str, request: Request):
-    data = None
-    if request.method in ["PUT"]:
-        try:
-            data = await request.json()
-        except:
-            pass
-    return await proxy_request(service, path=id, method=request.method, data=data)
+def register_service_routes(svc: str):
+    tag = svc.capitalize().replace("-", " ")
+    singular = tag[:-1] if tag.endswith('s') else tag
+    safe_name = svc.replace("-", "_")
+
+    # Defining handlers inside the factory securely isolates variable closures
+    async def get_all():
+        return await proxy_request(svc, method="GET")
+    get_all.__name__ = f"get_all_{safe_name}s"
+
+    async def create_item(data: dict = Body(...)):
+        return await proxy_request(svc, method="POST", data=data)
+    create_item.__name__ = f"add_{safe_name}"
+
+    async def get_item(id: str):
+        return await proxy_request(svc, path=id, method="GET")
+    get_item.__name__ = f"get_{safe_name}"
+
+    async def update_item(id: str, data: dict = Body(...)):
+        return await proxy_request(svc, path=id, method="PUT", data=data)
+    update_item.__name__ = f"update_{safe_name}"
+
+    async def delete_item(id: str):
+        return await proxy_request(svc, path=id, method="DELETE")
+    delete_item.__name__ = f"delete_{safe_name}"
+
+    # Connect them to FastAPI router sequentially
+    app.add_api_route(f"/{svc}", get_all, methods=["GET"], tags=[tag], summary=f"Get {tag}")
+    app.add_api_route(f"/{svc}", create_item, methods=["POST"], tags=[tag], summary=f"Add {singular}")
+    app.add_api_route(f"/{svc}/{{id}}", get_item, methods=["GET"], tags=[tag], summary=f"Get {singular}")
+    app.add_api_route(f"/{svc}/{{id}}", update_item, methods=["PUT"], tags=[tag], summary=f"Update {singular}")
+    app.add_api_route(f"/{svc}/{{id}}", delete_item, methods=["DELETE"], tags=[tag], summary=f"Delete {singular}")
+
+# Actually register them
+for service in SERVICES.keys():
+    register_service_routes(service)
 
 if __name__ == "__main__":
     import uvicorn
