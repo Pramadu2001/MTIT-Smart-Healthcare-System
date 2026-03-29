@@ -23,6 +23,8 @@ export default function Modal({ title, onClose, children }) {
                     padding: "24px 28px",
                     width: "100%",
                     maxWidth: 520,
+                    maxHeight: "90vh",
+                    overflowY: "auto",
                     boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
                     animation: "fadeIn 0.2s ease",
                 }}
