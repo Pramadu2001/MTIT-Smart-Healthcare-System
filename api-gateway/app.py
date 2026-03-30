@@ -1,9 +1,6 @@
-from flask import Flask, jsonify, request
-import requests
-from flask_cors import CORS
-
-app = Flask(__name__)
-CORS(app)
+from fastapi import FastAPI, Request, HTTPException, Response, Body
+from fastapi.middleware.cors import CORSMiddleware
+import httpx
 
 # Service registry - all microservice base URLs
 SERVICES = {
@@ -15,65 +12,104 @@ SERVICES = {
     "payments":      "http://localhost:8006",
 }
 
-def proxy_request(service, path="", method="GET", data=None):
+tags_metadata = [
+    {
+        "name": svc.capitalize().replace("-", " "),
+        "description": f"Manage {svc[:-1] if svc.endswith('s') else svc} details"
+    } for svc in SERVICES.keys()
+]
+
+app = FastAPI(
+    title="Medicore-Healthcare-System API Gateway",
+    description="Centralized API Gateway routing to localized microservices cleanly.",
+    openapi_tags=tags_metadata
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+async def proxy_request(service: str, path: str = "", method: str = "GET", data=None):
     if service not in SERVICES:
-        return jsonify({"error": f"Service '{service}' not found"}), 404
+        raise HTTPException(status_code=404, detail=f"Service '{service}' not found")
     url = f"{SERVICES[service]}/{service}"
     if path:
         url = f"{url}/{path}"
     try:
-        if method == "GET":
-            resp = requests.get(url, timeout=5)
-        elif method == "POST":
-            resp = requests.post(url, json=data, timeout=5)
-        elif method == "PUT":
-            resp = requests.put(url, json=data, timeout=5)
-        elif method == "DELETE":
-            resp = requests.delete(url, timeout=5)
-        else:
-            return jsonify({"error": "Method not supported"}), 405
-        return jsonify(resp.json()), resp.status_code
-    except requests.exceptions.ConnectionError:
-        return jsonify({"error": f"Service '{service}' is unavailable"}), 503
+        async with httpx.AsyncClient() as client:
+            resp = await client.request(method, url, json=data, timeout=15.0)
+            return Response(content=resp.content, status_code=resp.status_code, media_type=resp.headers.get("Content-Type", "application/json"))
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail=f"Service '{service}' is unavailable")
+    except httpx.ReadTimeout:
+        raise HTTPException(status_code=504, detail=f"Service '{service}' timed out - try again")
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-# ── GET all ──────────────────────────────────────────────
-@app.route("/<service>", methods=["GET"])
-def gateway_get_all(service):
-    return proxy_request(service, method="GET")
 
-# ── POST (create) ────────────────────────────────────────
-@app.route("/<service>", methods=["POST"])
-def gateway_post(service):
-    return proxy_request(service, method="POST", data=request.json)
+@app.get("/", tags=["Gateway System Info"])
+async def gateway_root():
+    return {
+        "status": "online", 
+        "message": "Welcome to the MediCore API Gateway. The system is running successfully."
+    }
 
-# ── GET one ──────────────────────────────────────────────
-@app.route("/<service>/<id>", methods=["GET"])
-def gateway_get_one(service, id):
-    return proxy_request(service, path=id, method="GET")
-
-# ── PUT (update) ─────────────────────────────────────────
-@app.route("/<service>/<id>", methods=["PUT"])
-def gateway_put(service, id):
-    return proxy_request(service, path=id, method="PUT", data=request.json)
-
-# ── DELETE ───────────────────────────────────────────────
-@app.route("/<service>/<id>", methods=["DELETE"])
-def gateway_delete(service, id):
-    return proxy_request(service, path=id, method="DELETE")
-
-# ── Health check ─────────────────────────────────────────
-@app.route("/health", methods=["GET"])
-def health():
+@app.get("/health", tags=["Gateway System Info"])
+async def health():
     statuses = {}
-    for name, url in SERVICES.items():
-        try:
-            resp = requests.get(f"{url}/{name}", timeout=2)
-            statuses[name] = "UP" if resp.status_code == 200 else "DEGRADED"
-        except Exception:
-            statuses[name] = "DOWN"
-    return jsonify({"gateway": "UP", "services": statuses})
+    async with httpx.AsyncClient() as client:
+        for name, url_base in SERVICES.items():
+            try:
+                resp = await client.get(f"{url_base}/{name}", timeout=2.0)
+                statuses[name] = "UP" if resp.status_code == 200 else "DEGRADED"
+            except Exception:
+                statuses[name] = "DOWN"
+    return {"gateway": "UP", "services": statuses}
+
+
+# ── Dynamically Generate & Group Routes for Swagger (/docs) ───
+
+def register_service_routes(svc: str):
+    tag = svc.capitalize().replace("-", " ")
+    singular = tag[:-1] if tag.endswith('s') else tag
+    safe_name = svc.replace("-", "_")
+
+    # Defining handlers inside the factory securely isolates variable closures
+    async def get_all():
+        return await proxy_request(svc, method="GET")
+    get_all.__name__ = f"get_all_{safe_name}s"
+
+    async def create_item(data: dict = Body(...)):
+        return await proxy_request(svc, method="POST", data=data)
+    create_item.__name__ = f"add_{safe_name}"
+
+    async def get_item(id: str):
+        return await proxy_request(svc, path=id, method="GET")
+    get_item.__name__ = f"get_{safe_name}"
+
+    async def update_item(id: str, data: dict = Body(...)):
+        return await proxy_request(svc, path=id, method="PUT", data=data)
+    update_item.__name__ = f"update_{safe_name}"
+
+    async def delete_item(id: str):
+        return await proxy_request(svc, path=id, method="DELETE")
+    delete_item.__name__ = f"delete_{safe_name}"
+
+    # Connect them to FastAPI router sequentially
+    app.add_api_route(f"/{svc}", get_all, methods=["GET"], tags=[tag], summary=f"Get {tag}")
+    app.add_api_route(f"/{svc}", create_item, methods=["POST"], tags=[tag], summary=f"Add {singular}")
+    app.add_api_route(f"/{svc}/{{id}}", get_item, methods=["GET"], tags=[tag], summary=f"Get {singular}")
+    app.add_api_route(f"/{svc}/{{id}}", update_item, methods=["PUT"], tags=[tag], summary=f"Update {singular}")
+    app.add_api_route(f"/{svc}/{{id}}", delete_item, methods=["DELETE"], tags=[tag], summary=f"Delete {singular}")
+
+# Actually register them
+for service in SERVICES.keys():
+    register_service_routes(service)
 
 if __name__ == "__main__":
-    app.run(port=8000, debug=True)
+    import uvicorn
+    uvicorn.run("app:app", host="0.0.0.0", port=8000)

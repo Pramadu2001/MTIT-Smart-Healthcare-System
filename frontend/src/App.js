@@ -31,6 +31,7 @@ const PAGES = {
 export default function App() {
     const [currentPage, setCurrentPage] = useState("dashboard");
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    
     const PageComponent = PAGES[currentPage];
 
     const closeSidebar = () => setSidebarOpen(false);
@@ -178,15 +179,23 @@ export default function App() {
                     <div style={{ fontWeight: 600, fontSize: 15, color: "#1f2a44" }}>
                         {NAV_ITEMS.find(n => n.id === currentPage)?.label || "Dashboard"}
                     </div>
-                    <div style={{
-                        background: "#ecfdf5",
-                        padding: "5px 14px",
-                        borderRadius: 40,
-                        fontSize: 12,
-                        fontWeight: 500,
-                        color: "#0b5e42",
-                    }}>
-                        ⚡ API:8000
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{
+                            background: "#ecfdf5",
+                            padding: "5px 14px",
+                            borderRadius: 40,
+                            fontSize: 12,
+                            fontWeight: 500,
+                            color: "#0b5e42",
+                        }}>
+                            ⚡ API:8000
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8,
+                            background: "#f1f5f9", borderRadius: 40, padding: "4px 12px" }}>
+                            <span style={{ fontSize: 12, color: "#475569", fontWeight: 500 }}>
+                                👑 Admin User
+                            </span>
+                        </div>
                     </div>
                 </header>
                 
