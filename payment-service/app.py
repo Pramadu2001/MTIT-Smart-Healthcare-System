@@ -3,18 +3,37 @@ from flask_pymongo import PyMongo
 from flask_cors import CORS
 from bson import ObjectId
 from datetime import datetime
+from flasgger import Swagger
 
 app = Flask(__name__)
 CORS(app)
 
-# MongoDB config
-app.config["MONGO_URI"] = "mongodb://localhost:27017/healthcareDB"
-mongo = PyMongo(app)
+# ✅ Swagger config
+app.config['SWAGGER'] = {
+    'title': 'Payment Service API',
+    'uiversion': 3
+}
 
+swagger = Swagger(app)
+
+# 🔥 MongoDB
+app.config["MONGO_URI"] = "mongodb+srv://MTIT:MTIT123456@cluster1.ddh6mzk.mongodb.net/healthcareDB?retryWrites=true&w=majority"
+
+mongo = PyMongo(app)
+# -------------------------------
 # Helper function
+# -------------------------------
 def format_doc(doc):
     doc["_id"] = str(doc["_id"])
     return doc
+
+
+# -------------------------------
+# HOME ROUTE
+# -------------------------------
+@app.route("/")
+def home():
+    return "💳 Payment Service Running on Port 5006"
 
 
 # -------------------------------
@@ -22,11 +41,19 @@ def format_doc(doc):
 # -------------------------------
 @app.route("/payments", methods=["GET"])
 def get_payments():
+    """
+    Get all payments
+    ---
+    tags:
+      - Payments
+    responses:
+      200:
+        description: List of payments
+    """
     payments = mongo.db.payments.find()
     return jsonify({
         "payments": [format_doc(p) for p in payments]
     })
-
 
 # -------------------------------
 # CREATE payment
@@ -55,7 +82,18 @@ def add_payment():
 
 
 # -------------------------------
-# UPDATE payment (status or details)
+# GET payments by patient ID
+# -------------------------------
+@app.route("/payments/patient/<patient_id>", methods=["GET"])
+def get_payments_by_patient(patient_id):
+    payments = mongo.db.payments.find({"patient_id": patient_id})
+    return jsonify({
+        "payments": [format_doc(p) for p in payments]
+    })
+
+
+# -------------------------------
+# UPDATE payment
 # -------------------------------
 @app.route("/payments/<id>", methods=["PUT"])
 def update_payment(id):
