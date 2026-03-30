@@ -1,5 +1,5 @@
 // src/pages/Patients.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApi } from '../hooks/useApi';
 import { useToast } from '../utils/api';
 import { api } from '../utils/api';
@@ -91,6 +91,13 @@ export default function Patients() {
         patient.contact?.includes(search)
     );
 
+    const stats = useMemo(() => {
+        const total = data.length;
+        const male = data.filter(p => p.gender === "Male").length;
+        const female = data.filter(p => p.gender === "Female").length;
+        return { total, male, female };
+    }, [data]);
+
     const columns = [
         {
             key: "name",
@@ -149,6 +156,22 @@ export default function Patients() {
             </div>
             
             {error && <ErrorBox msg={error} />}
+            
+            {/* Stats Grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 18, marginBottom: 24 }}>
+                <Card style={{ padding: 22, borderTop: "4px solid #3b82f6" }}>
+                    <div style={{ color: "#64748b", fontSize: 13, fontWeight: 700, textTransform: "uppercase" }}>Total Patients</div>
+                    <div style={{ fontSize: 28, fontWeight: 800, color: "#0f172a", marginTop: 4 }}>{stats.total}</div>
+                </Card>
+                <Card style={{ padding: 22, borderTop: "4px solid #0ea5e9" }}>
+                    <div style={{ color: "#64748b", fontSize: 13, fontWeight: 700, textTransform: "uppercase" }}>Male</div>
+                    <div style={{ fontSize: 28, fontWeight: 800, color: "#0ea5e9", marginTop: 4 }}>{stats.male}</div>
+                </Card>
+                <Card style={{ padding: 22, borderTop: "4px solid #ec4899" }}>
+                    <div style={{ color: "#64748b", fontSize: 13, fontWeight: 700, textTransform: "uppercase" }}>Female</div>
+                    <div style={{ fontSize: 28, fontWeight: 800, color: "#ec4899", marginTop: 4 }}>{stats.female}</div>
+                </Card>
+            </div>
             
             <Card>
                 <div style={{ padding: "14px 20px", borderBottom: "1px solid #f0f2f5" }}>
