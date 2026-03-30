@@ -1,188 +1,116 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from pymongo import MongoClient
-from flasgger import Swagger
 from bson import ObjectId
+from bson.errors import InvalidId
+from typing import Optional
 
-app = Flask(__name__)
-CORS(app)
-Swagger(app)
+app = FastAPI(
+    title="Appointment Service",
+    description="Healthcare Appointment Management API",
+    version="1.0.0"
+)
 
-# MongoDB connection
-client = MongoClient("mongodb://localhost:27017/")
-db = client["healthcare"]
-appointments_col = db["appointments"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Helper to convert MongoDB doc to JSON-safe dict
+client = None
+db = None
+appointments_col = None
+
+@app.on_event("startup")
+def startup_db():
+    global client, db, appointments_col
+    uri = "mongodb+srv://chalaninethranjali:Chalani123@cluster0.qm4u1kx.mongodb.net/?appName=Cluster0"
+    client = MongoClient(uri)
+    db = client["healthcare"]
+    appointments_col = db["appointments"]
+
+@app.on_event("shutdown")
+def shutdown_db():
+    if client:
+        client.close()
+
+# Helper to format object ID
 def serialize(doc):
-    doc["_id"] = str(doc["_id"])
+    if not doc: return None
+    doc["id"] = str(doc.get("_id"))
+    doc.pop("_id", None) # Clean up the old MongoDB id reference for the frontend
     return doc
 
-# ── GET all appointments ──────────────────────────────
-@app.route("/appointments", methods=["GET"])
+def parse_object_id(id_str: str) -> ObjectId:
+    try:
+        return ObjectId(id_str)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+
+class AppointmentCreate(BaseModel):
+    patient_name: str
+    doctor_name: str
+    date: str
+    time: str
+    reason: str
+    status: Optional[str] = "Pending"
+    
+class AppointmentUpdate(BaseModel):
+    status: Optional[str] = None
+    date: Optional[str] = None
+    time: Optional[str] = None
+
+@app.get("/appointments", tags=["Appointments"], summary="Get all appointments")
 def get_appointments():
-    """
-    Get all appointments
-    ---
-    tags:
-      - Appointments
-    responses:
-      200:
-        description: List of all appointments
-    """
     appointments = [serialize(a) for a in appointments_col.find()]
-    return jsonify({"appointments": appointments}), 200
+    return {"success": True, "data": appointments}
 
-# ── POST - Book new appointment ───────────────────────
-@app.route("/appointments", methods=["POST"])
-def book_appointment():
-    """
-    Book a new appointment
-    ---
-    tags:
-      - Appointments
-    parameters:
-      - in: body
-        name: appointment
-        required: true
-        schema:
-          type: object
-          required:
-            - patient_name
-            - doctor_name
-            - date
-            - time
-            - reason
-          properties:
-            patient_name:
-              type: string
-              example: "John Doe"
-            doctor_name:
-              type: string
-              example: "Dr. Smith"
-            date:
-              type: string
-              example: "2026-04-01"
-            time:
-              type: string
-              example: "10:30 AM"
-            reason:
-              type: string
-              example: "Fever and headache"
-            status:
-              type: string
-              example: "Pending"
-    responses:
-      201:
-        description: Appointment booked successfully
-      400:
-        description: Missing required fields
-    """
-    data = request.get_json()
-    required = ["patient_name", "doctor_name", "date", "time", "reason"]
-    for field in required:
-        if field not in data:
-            return jsonify({"error": f"Missing field: {field}"}), 400
-    data.setdefault("status", "Pending")
+@app.post("/appointments", status_code=201, tags=["Appointments"], summary="Book a new appointment")
+def book_appointment(appointment: AppointmentCreate):
+    data = appointment.model_dump()
     result = appointments_col.insert_one(data)
-    return jsonify({
-        "message": "Appointment booked successfully",
-        "id": str(result.inserted_id)
-    }), 201
+    data["id"] = str(result.inserted_id)
+    data.pop("_id", None)
+    return {"success": True, "message": "Appointment booked successfully", "data": data}
 
-# ── GET single appointment ────────────────────────────
-@app.route("/appointments/<appointment_id>", methods=["GET"])
-def get_appointment(appointment_id):
-    """
-    Get a single appointment by ID
-    ---
-    tags:
-      - Appointments
-    parameters:
-      - in: path
-        name: appointment_id
-        type: string
-        required: true
-    responses:
-      200:
-        description: Appointment found
-      404:
-        description: Not found
-    """
-    try:
-        appt = appointments_col.find_one({"_id": ObjectId(appointment_id)})
-    except Exception:
-        return jsonify({"error": "Invalid ID format"}), 400
-    if appt:
-        return jsonify(serialize(appt)), 200
-    return jsonify({"error": "Appointment not found"}), 404
+@app.get("/appointments/{appointment_id}", tags=["Appointments"], summary="Get a single appointment by ID")
+def get_appointment(appointment_id: str):
+    oid = parse_object_id(appointment_id)
+    appt = appointments_col.find_one({"_id": oid})
+    if not appt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return {"success": True, "data": serialize(appt)}
 
-# ── PUT - Update appointment ──────────────────────────
-@app.route("/appointments/<appointment_id>", methods=["PUT"])
-def update_appointment(appointment_id):
-    """
-    Update an appointment
-    ---
-    tags:
-      - Appointments
-    parameters:
-      - in: path
-        name: appointment_id
-        type: string
-        required: true
-      - in: body
-        name: body
-        schema:
-          type: object
-          properties:
-            status:
-              type: string
-              example: "Confirmed"
-    responses:
-      200:
-        description: Updated successfully
-      404:
-        description: Not found
-    """
-    data = request.get_json()
-    try:
-        result = appointments_col.update_one(
-            {"_id": ObjectId(appointment_id)},
-            {"$set": data}
-        )
-    except Exception:
-        return jsonify({"error": "Invalid ID format"}), 400
+@app.put("/appointments/{appointment_id}", tags=["Appointments"], summary="Update an appointment")
+def update_appointment(appointment_id: str, appointment_update: AppointmentUpdate):
+    oid = parse_object_id(appointment_id)
+    update_data = {k: v for k, v in appointment_update.model_dump().items() if v is not None}
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+
+    result = appointments_col.update_one({"_id": oid}, {"$set": update_data})
     if result.matched_count == 0:
-        return jsonify({"error": "Appointment not found"}), 404
-    return jsonify({"message": "Appointment updated successfully"}), 200
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    return {"success": True, "message": "Appointment updated successfully"}
 
-# ── DELETE appointment ────────────────────────────────
-@app.route("/appointments/<appointment_id>", methods=["DELETE"])
-def delete_appointment(appointment_id):
-    """
-    Delete an appointment
-    ---
-    tags:
-      - Appointments
-    parameters:
-      - in: path
-        name: appointment_id
-        type: string
-        required: true
-    responses:
-      200:
-        description: Deleted successfully
-      404:
-        description: Not found
-    """
-    try:
-        result = appointments_col.delete_one({"_id": ObjectId(appointment_id)})
-    except Exception:
-        return jsonify({"error": "Invalid ID format"}), 400
+@app.delete("/appointments/{appointment_id}", tags=["Appointments"], summary="Delete an appointment")
+def delete_appointment(appointment_id: str):
+    oid = parse_object_id(appointment_id)
+    result = appointments_col.delete_one({"_id": oid})
     if result.deleted_count == 0:
-        return jsonify({"error": "Appointment not found"}), 404
-    return jsonify({"message": "Appointment deleted successfully"}), 200
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return {"success": True, "message": "Appointment deleted successfully"}
 
+@app.get("/", tags=["Health"])
+def health_check():
+    return {"service": "Appointment Service", "status": "UP"}
 
 if __name__ == "__main__":
-    app.run(port=8003, debug=True)  # ✅ Port 8003
+    import uvicorn
+    # Excluding reload=True on windows to completely avoid ghost-process port blocking
+    uvicorn.run("app:app", host="0.0.0.0", port=8003)
