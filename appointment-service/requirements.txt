@@ -1,4 +1,4 @@
-flask
-flask-cors
-pymongo
-flasgger
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pymongo[srv]==4.8.0
+pydantic==2.8.2
