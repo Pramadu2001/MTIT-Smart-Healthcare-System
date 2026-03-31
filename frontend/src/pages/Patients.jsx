@@ -137,8 +137,8 @@ export default function Patients() {
             label: "",
             render: p => (
                 <div style={{ display: "flex", gap: 6 }}>
-                    <Btn variant="ghost" onClick={() => openEdit(p)}>Edit</Btn>
-                    <Btn variant="danger" onClick={() => deletePatient(p._id)}>Delete</Btn>
+                    <Btn variant="ghost" onClick={() => openEdit(p)}>✏️ Edit</Btn>
+                    <Btn variant="danger" onClick={() => deletePatient(p._id)}>🗑️ Delete</Btn>
                 </div>
             )
         },
@@ -149,10 +149,10 @@ export default function Patients() {
             <Toast toast={toast} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
                 <div>
-                    <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0f172a" }}>Patients</h2>
+                    <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0f172a" }}>👤 Patients</h2>
                     <p style={{ fontSize: 13, color: "#5b6e8c", marginTop: 2 }}>{data.length} total records</p>
                 </div>
-                <Btn onClick={openAdd}>+ Register Patient</Btn>
+                <Btn onClick={openAdd}>+ Add Patient</Btn>
             </div>
             
             {error && <ErrorBox msg={error} />}
@@ -177,7 +177,7 @@ export default function Patients() {
                 <div style={{ padding: "14px 20px", borderBottom: "1px solid #f0f2f5" }}>
                     <input
                         type="text"
-                        placeholder="Search by name or contact..."
+                        placeholder="🔍 Search by name or contact..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         style={{
@@ -195,7 +195,7 @@ export default function Patients() {
             </Card>
             
             {modalOpen && (
-                <Modal title={editId ? "Edit Patient" : "New Patient"} onClose={() => setModalOpen(false)}>
+                <Modal title={editId ? "✏️ Edit Patient" : "👤 New Patient"} onClose={() => setModalOpen(false)}>
                     <form onSubmit={submit}>
                         <div style={{ display: "grid", gap: 14 }}>
                             <Input 
@@ -250,7 +250,7 @@ export default function Patients() {
                         </div>
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24 }}>
                             <Btn variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Btn>
-                            <Btn type="submit">{editId ? "Update" : "Register"}</Btn>
+                            <Btn type="submit">{editId ? "Update Patient" : "Add Patient"}</Btn>
                         </div>
                     </form>
                 </Modal>

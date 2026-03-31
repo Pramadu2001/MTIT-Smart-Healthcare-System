@@ -11,14 +11,14 @@ def fix_id(doc):
     return doc
 
 # CREATE
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def create_patient(patient: PatientModel):
     result = await patient_collection.insert_one(patient.dict())
     new = await patient_collection.find_one({"_id": result.inserted_id})
     return fix_id(new)
 
 # READ ALL
-@router.get("/")
+@router.get("")
 async def get_all_patients():
     patients = []
     async for p in patient_collection.find():

@@ -20,7 +20,7 @@ tags_metadata = [
 ]
 
 app = FastAPI(
-    title="Medicore-Healthcare-System API Gateway",
+    title="Medicore-Healthcare-System",
     description="Centralized API Gateway routing to localized microservices cleanly.",
     openapi_tags=tags_metadata
 )
@@ -36,11 +36,11 @@ app.add_middleware(
 async def proxy_request(service: str, path: str = "", method: str = "GET", data=None):
     if service not in SERVICES:
         raise HTTPException(status_code=404, detail=f"Service '{service}' not found")
-    url = f"{SERVICES[service]}/{service}/"
+    url = f"{SERVICES[service]}/{service}"
     if path:
-        url = f"{SERVICES[service]}/{service}/{path}"
+        url = f"{url}/{path}"
     try:
-        async with httpx.AsyncClient(follow_redirects=True) as client:
+        async with httpx.AsyncClient() as client:
             resp = await client.request(method, url, json=data, timeout=15.0)
             return Response(content=resp.content, status_code=resp.status_code, media_type=resp.headers.get("Content-Type", "application/json"))
     except httpx.ConnectError:

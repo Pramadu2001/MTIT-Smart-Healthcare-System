@@ -20,14 +20,8 @@ export default function Dashboard() {
             try {
                 const response = await fetch(`${GW}/${svc.endpoint}`);
                 const data = await response.json();
-                let arr = [];
-                if (Array.isArray(data)) {
-                    arr = data;
-                } else if (data && Array.isArray(data.data)) {
-                    arr = data.data;
-                } else if (data && Array.isArray(data[svc.key])) {
-                    arr = data[svc.key];
-                }
+                // Gracefully fallback to checking standard data/results format to natively support all microservices
+                const arr = Array.isArray(data) ? data : (data.data || data.results || data[svc.key] || []);
                 setCounts(prev => ({ ...prev, [svc.endpoint]: arr.length }));
                 setStatuses(prev => ({ ...prev, [svc.endpoint]: "up" }));
             } catch {
@@ -116,8 +110,8 @@ export default function Dashboard() {
                         {[
                             { label: "Pattern", value: "Microservices" },
                             { label: "Gateway", value: "Port 8000" },
-                            { label: "Backend", value: "Python Flask" },
-                            { label: "Database", value: "MongoDB / service" },
+                            { label: "Backend", value: "Python FastAPI" },
+                            { label: "Database", value: "MongoDB Atlas" },
                             { label: "Frontend", value: "React + Vite" },
                             { label: "Services", value: "6 independent" },
                         ].map(row => (
