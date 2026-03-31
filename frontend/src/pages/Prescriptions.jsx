@@ -1,5 +1,5 @@
 // src/pages/Prescriptions.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApi } from '../hooks/useApi';
 import { useToast, api } from '../utils/api';
 import {
@@ -143,6 +143,17 @@ export default function Prescriptions() {
         rx.medicines?.some(m => m.name?.toLowerCase().includes(search.toLowerCase()))
     );
 
+    const stats = useMemo(() => {
+        const total = data.length;
+        const totalMeds = data.reduce((acc, rx) => acc + (rx.medicines?.length || rx.medication ? 1 : 0), 0);
+        const latest = data.filter(rx => {
+             const d = new Date(rx.date_issued);
+             const today = new Date();
+             return (today - d) / (1000 * 3600 * 24) <= 7;
+        }).length;
+        return { total, totalMeds, latest };
+    }, [data]);
+
     const columns = [
         {
             key: "medicines",
@@ -237,6 +248,22 @@ export default function Prescriptions() {
             </div>
 
             {error && <ErrorBox msg={error} />}
+
+            {/* Stats Grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 18, marginBottom: 24 }}>
+                <Card style={{ padding: 22, borderTop: "4px solid #3b82f6" }}>
+                    <div style={{ color: "#64748b", fontSize: 13, fontWeight: 700, textTransform: "uppercase" }}>Total Prescriptions</div>
+                    <div style={{ fontSize: 28, fontWeight: 800, color: "#0f172a", marginTop: 4 }}>{stats.total}</div>
+                </Card>
+                <Card style={{ padding: 22, borderTop: "4px solid #10b981" }}>
+                    <div style={{ color: "#64748b", fontSize: 13, fontWeight: 700, textTransform: "uppercase" }}>Medicines Prescribed</div>
+                    <div style={{ fontSize: 28, fontWeight: 800, color: "#10b981", marginTop: 4 }}>{stats.totalMeds}</div>
+                </Card>
+                <Card style={{ padding: 22, borderTop: "4px solid #8b5cf6" }}>
+                    <div style={{ color: "#64748b", fontSize: 13, fontWeight: 700, textTransform: "uppercase" }}>Issued (Last 7 Days)</div>
+                    <div style={{ fontSize: 28, fontWeight: 800, color: "#8b5cf6", marginTop: 4 }}>{stats.latest}</div>
+                </Card>
+            </div>
 
             {/* Table Card */}
             <Card>

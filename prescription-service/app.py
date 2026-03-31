@@ -4,7 +4,7 @@ from pymongo import MongoClient
 from bson import ObjectId
 from datetime import datetime
 
-app = FastAPI()
+app = FastAPI(title="Prescription Service", description="Healthcare Prescription API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,

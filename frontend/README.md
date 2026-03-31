@@ -21,14 +21,14 @@ A modern, minimalist healthcare management system built with React and microserv
 ## 📁 Project Structure
 ```
 healthcare-microservices/
-├── api-gateway/           ← Routes all traffic (port 5000)
-├── patient-service/       ← Member 1 (port 5001)
-├── doctor-service/        ← Member 2 (port 5002)
-├── appointment-service/   ← Member 3 (port 5003)
-├── prescription-service/  ← Member 4 (port 5004)
-├── lab-service/           ← Member 5 (port 5005)
-├── payment-service/       ← Member 6 (port 5006)
-└── frontend/              ← React UI (open index.html)
+├── api-gateway/           ← Routes all traffic (port 8000)
+├── patient-service/       ← Member 1 (port 8001)
+├── doctor-service/        ← Member 2 (port 8002)
+├── appointment-service/   ← Member 3 (port 8003)
+├── prescription-service/  ← Member 4 (port 8004)
+├── lab-service/           ← Member 5 (port 8005)
+├── payment-service/       ← Member 6 (port 8006)
+└── frontend/              ← React UI 
 ```
 
 ---
@@ -90,11 +90,11 @@ Open `frontend/index.html` in your browser.
 ### Direct access (each service)
 | Service | URL |
 |---------|-----|
-| Patients | http://localhost:5001/patients |
-| Doctors | http://localhost:5002/doctors |
-| Appointments | http://localhost:5003/appointments |
-| Prescriptions | http://localhost:5004/prescriptions |
-| Labs | http://localhost:5005/labs |
+| Patients | http://localhost:8001/patients |
+| Doctors | http://localhost:8002/doctors |
+| Appointments | http://localhost:8003/appointments |
+| Prescriptions | http://localhost:8004/prescriptions |
+| Labs | http://localhost:8005/labs |
 | Payments | http://localhost:5006/payments |
 
 ### Via API Gateway (single port!)

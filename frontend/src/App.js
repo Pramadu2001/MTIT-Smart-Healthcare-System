@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import Dashboard from './pages/Dashboard';
-import Patients from './pages/Patients';
+import Patients from './';
 import Doctors from './pages/Doctors';
 import Appointments from './pages/Appointments';
 import Prescriptions from './pages/Prescriptions';
 import LabResults from './pages/LabResults';
 import Payments from './pages/Payments';
 import './styles/App.css';
+import PatientList from './services/patients/PatientList';
 
 const NAV_ITEMS = [
     { id: "dashboard", label: "Dashboard", icon: "📊", color: "#6366f1" },
@@ -20,7 +21,7 @@ const NAV_ITEMS = [
 
 const PAGES = {
     dashboard: Dashboard,
-    patients: Patients,
+    patients: PatientList,
     doctors: Doctors,
     appointments: Appointments,
     prescriptions: Prescriptions,
@@ -31,7 +32,7 @@ const PAGES = {
 export default function App() {
     const [currentPage, setCurrentPage] = useState("dashboard");
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    
+
     const PageComponent = PAGES[currentPage];
 
     const closeSidebar = () => setSidebarOpen(false);
@@ -52,7 +53,7 @@ export default function App() {
                     }}
                 />
             )}
-            
+
             {/* Sidebar */}
             <aside
                 className="sidebar"
@@ -91,7 +92,7 @@ export default function App() {
                     </span>
                     <span style={{ fontSize: 19, fontWeight: 700, color: "#0f172a" }}>MediCore</span>
                 </div>
-                
+
                 <nav style={{ flex: 1, padding: "20px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
                     {NAV_ITEMS.map(item => (
                         <button
@@ -123,7 +124,7 @@ export default function App() {
                         </button>
                     ))}
                 </nav>
-                
+
                 <div style={{
                     padding: "20px",
                     borderTop: "1px solid #f0f2f5",
@@ -134,7 +135,7 @@ export default function App() {
                     v2.0 · Microservices
                 </div>
             </aside>
-            
+
             {/* Main Content */}
             <main style={{
                 flex: 1,
@@ -190,15 +191,17 @@ export default function App() {
                         }}>
                             ⚡ API:8000
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8,
-                            background: "#f1f5f9", borderRadius: 40, padding: "4px 12px" }}>
+                        <div style={{
+                            display: "flex", alignItems: "center", gap: 8,
+                            background: "#f1f5f9", borderRadius: 40, padding: "4px 12px"
+                        }}>
                             <span style={{ fontSize: 12, color: "#475569", fontWeight: 500 }}>
                                 👑 Admin User
                             </span>
                         </div>
                     </div>
                 </header>
-                
+
                 <div style={{
                     padding: "28px 24px",
                     flex: 1,
@@ -210,7 +213,7 @@ export default function App() {
                     <PageComponent />
                 </div>
             </main>
-            
+
             <style>{`
                 @media (min-width: 1024px) {
                     .sidebar {

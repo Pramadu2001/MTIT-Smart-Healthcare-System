@@ -1,302 +1,177 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
+import React, { useState, useEffect, useMemo } from 'react';
+import { useApi } from '../hooks/useApi';
+import { useToast, api } from '../utils/api';
+import { Btn, Modal, Input, Table, Card, Badge, Loading, ErrorBox, Toast } from '../components/UI';
 
-const GATEWAY = "http://localhost:8000";
-const API = `${GATEWAY}/doctors`;
+export default function Doctors() {
+    const { data, loading, error, load } = useApi("doctors");
+    const { toast, show } = useToast();
+    const [modalOpen, setModalOpen] = useState(false);
+    const [form, setForm] = useState({ name: "", specialization: "", contact: "", email: "", experience: "", availability: "" });
+    const [editId, setEditId] = useState(null);
+    const [search, setSearch] = useState("");
 
-const emptyForm = {
-  name: "",
-  specialization: "",
-  contact: "",
-  email: "",
-  experience: "",
-  availability: "",
-};
+    useEffect(() => { load(); }, [load]);
 
-export default function Doctor() {
-  const [doctors, setDoctors]     = useState([]);
-  const [form, setForm]           = useState(emptyForm);
-  const [editId, setEditId]       = useState(null);
-  const [search, setSearch]       = useState("");
-  const [message, setMessage]     = useState(null);
-  const [loading, setLoading]     = useState(false);
-  const [viewDoctor, setViewDoctor] = useState(null);
+    const updateField = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
 
-  // ── Fetch all doctors ──
-  const fetchDoctors = async () => {
-    setLoading(true);
-    try {
-      const res = await axios.get(`${API}`);
-      setDoctors(res.data.data);
-    } catch (err) {
-      showMessage("Failed to fetch doctors", "error");
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchDoctors(); }, []);
-
-  // ── Show message ──
-  const showMessage = (text, type = "success") => {
-    setMessage({ text, type });
-    setTimeout(() => setMessage(null), 3000);
-  };
-
-  // ── Handle form input ──
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  // ── Submit (Add or Update) ──
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      if (editId) {
-        // UPDATE
-        await axios.put(`${API}/${editId}`, form);
-        showMessage("Doctor updated successfully ✅");
+    const openAdd = () => {
+        setForm({ name: "", specialization: "", contact: "", email: "", experience: "", availability: "" });
         setEditId(null);
-      } else {
-        // CREATE
-        await axios.post(`${API}`, form);
-        showMessage("Doctor added successfully ✅");
-      }
-      setForm(emptyForm);
-      fetchDoctors();
-    } catch (err) {
-      showMessage(err.response?.data?.message || "Something went wrong", "error");
-    }
-  };
+        setModalOpen(true);
+    };
 
-  // ── Edit ──
-  const handleEdit = (doctor) => {
-    setEditId(doctor.id);
-    setForm({
-      name:           doctor.name,
-      specialization: doctor.specialization,
-      contact:        doctor.contact,
-      email:          doctor.email,
-      experience:     doctor.experience,
-      availability:   doctor.availability,
-    });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+    const openEdit = (doctor) => {
+        setForm({
+            name: doctor.name,
+            specialization: doctor.specialization,
+            contact: doctor.contact,
+            email: doctor.email,
+            experience: doctor.experience,
+            availability: doctor.availability,
+        });
+        setEditId(doctor.id || doctor._id);
+        setModalOpen(true);
+    };
 
-  // ── Delete ──
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this doctor?")) return;
-    try {
-      await axios.delete(`${API}/${id}`);
-      showMessage("Doctor deleted successfully 🗑️");
-      fetchDoctors();
-    } catch {
-      showMessage("Failed to delete doctor", "error");
-    }
-  };
+    const submit = async (e) => {
+        e.preventDefault();
+        try {
+            const body = { ...form, experience: parseInt(form.experience) || 0 };
+            if (editId) {
+                await api("PUT", `doctors/${editId}`, body);
+                show("Doctor updated successfully! 🩺");
+            } else {
+                await api("POST", "doctors", body);
+                show("Doctor added successfully! 🩺");
+            }
+            setModalOpen(false);
+            load();
+        } catch {
+            show("Error saving doctor", "err");
+        }
+    };
 
-  // ── View single ──
-  const handleView = async (id) => {
-    try {
-      const res = await axios.get(`${API}/${id}`);
-      setViewDoctor(res.data.data);
-    } catch {
-      showMessage("Failed to fetch doctor details", "error");
-    }
-  };
+    const deleteDoctor = async (id) => {
+        if (!window.confirm("Delete this doctor? This action cannot be undone.")) return;
+        try {
+            await api("DELETE", `doctors/${id}`);
+            show("Doctor deleted 🗑️");
+            load();
+        } catch {
+            show("Error deleting doctor", "err");
+        }
+    };
 
-  // ── Search ──
-  const handleSearch = async () => {
-    if (!search.trim()) { fetchDoctors(); return; }
-    try {
-      const res = await axios.get(`${API}/search/${search}`);
-      setDoctors(res.data.data);
-    } catch {
-      showMessage("Search failed", "error");
-    }
-  };
+    const filtered = data.filter(doc =>
+        doc.name?.toLowerCase().includes(search.toLowerCase()) ||
+        doc.specialization?.toLowerCase().includes(search.toLowerCase())
+    );
 
-  // ── Cancel edit ──
-  const handleCancel = () => {
-    setEditId(null);
-    setForm(emptyForm);
-  };
+    const stats = useMemo(() => {
+        const total = data.length;
+        const specialties = new Set(data.map(d => d.specialization)).size;
+        const active = data.filter(d => d.availability && !d.availability.toLowerCase().includes('unavailable')).length;
+        return { total, specialties, active };
+    }, [data]);
 
-  return (
-    <div style={s.page}>
-      <h1 style={s.title}>🩺 Doctor Management</h1>
+    const columns = [
+        {
+            key: "name",
+            label: "Doctor",
+            render: (d) => (
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 40, background: "#eef2ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>
+                        👨‍⚕️
+                    </div>
+                    <div>
+                        <div style={{ fontWeight: 600 }}>{d.name}</div>
+                        <div style={{ fontSize: 11, color: "#94a3b8" }}>{d.id?.slice(-6) || d._id?.slice(-6)}</div>
+                    </div>
+                </div>
+            )
+        },
+        { key: "specialization", label: "Specialization", render: d => <Badge label={d.specialization} color="#3b82f6" /> },
+        { key: "experience", label: "Experience", render: d => `${d.experience} yrs` },
+        { key: "contact", label: "Contact", render: d => d.contact },
+        { key: "email", label: "Email", render: d => <span style={{ color: "#475569" }}>{d.email}</span> },
+        { key: "availability", label: "Availability", render: d => <span style={{ fontWeight: 500 }}>{d.availability}</span> },
+        {
+            key: "actions",
+            label: "",
+            render: d => (
+                <div style={{ display: "flex", gap: 6 }}>
+                    <Btn variant="ghost" onClick={() => openEdit(d)}>✏️ Edit</Btn>
+                    <Btn variant="danger" onClick={() => deleteDoctor(d.id || d._id)}>🗑️ Delete</Btn>
+                </div>
+            )
+        },
+    ];
 
-      {/* Message */}
-      {message && (
-        <div style={{ ...s.alert, background: message.type === "error" ? "#fed7d7" : "#c6f6d5", color: message.type === "error" ? "#c53030" : "#276749" }}>
-          {message.text}
-        </div>
-      )}
-
-      {/* ── FORM ── */}
-      <div style={s.card}>
-        <h2 style={s.cardTitle}>{editId ? "✏️ Edit Doctor" : "➕ Add New Doctor"}</h2>
-        <form onSubmit={handleSubmit} style={s.form}>
-          <div style={s.grid}>
-            <div style={s.field}>
-              <label style={s.label}>Full Name *</label>
-              <input name="name" value={form.name} onChange={handleChange}
-                placeholder="Dr. John Silva" style={s.input} required />
+    return (
+        <div>
+            <Toast toast={toast} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+                <div>
+                    <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0f172a" }}>🩺 Doctors</h2>
+                    <p style={{ fontSize: 13, color: "#5b6e8c", marginTop: 2 }}>{data.length} total records</p>
+                </div>
+                <Btn onClick={openAdd}>+ Add Doctor</Btn>
             </div>
-            <div style={s.field}>
-              <label style={s.label}>Specialization *</label>
-              <input name="specialization" value={form.specialization} onChange={handleChange}
-                placeholder="Cardiology" style={s.input} required />
+            
+            {error && <ErrorBox msg={error} />}
+            
+            {/* Stats Grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 18, marginBottom: 24 }}>
+                <Card style={{ padding: 22, borderTop: "4px solid #3b82f6" }}>
+                    <div style={{ color: "#64748b", fontSize: 13, fontWeight: 700, textTransform: "uppercase" }}>Total Doctors</div>
+                    <div style={{ fontSize: 28, fontWeight: 800, color: "#0f172a", marginTop: 4 }}>{stats.total}</div>
+                </Card>
+                <Card style={{ padding: 22, borderTop: "4px solid #8b5cf6" }}>
+                    <div style={{ color: "#64748b", fontSize: 13, fontWeight: 700, textTransform: "uppercase" }}>Specialties</div>
+                    <div style={{ fontSize: 28, fontWeight: 800, color: "#8b5cf6", marginTop: 4 }}>{stats.specialties}</div>
+                </Card>
+                <Card style={{ padding: 22, borderTop: "4px solid #10b981" }}>
+                    <div style={{ color: "#64748b", fontSize: 13, fontWeight: 700, textTransform: "uppercase" }}>Active / Available</div>
+                    <div style={{ fontSize: 28, fontWeight: 800, color: "#10b981", marginTop: 4 }}>{stats.active}</div>
+                </Card>
             </div>
-            <div style={s.field}>
-              <label style={s.label}>Contact *</label>
-              <input name="contact" value={form.contact} onChange={handleChange}
-                placeholder="0771234567" style={s.input} required />
-            </div>
-            <div style={s.field}>
-              <label style={s.label}>Email *</label>
-              <input name="email" value={form.email} onChange={handleChange}
-                placeholder="doctor@hospital.com" style={s.input} type="email" required />
-            </div>
-            <div style={s.field}>
-              <label style={s.label}>Experience (years) *</label>
-              <input name="experience" value={form.experience} onChange={handleChange}
-                placeholder="5" style={s.input} type="number" required />
-            </div>
-            <div style={s.field}>
-              <label style={s.label}>Availability *</label>
-              <input name="availability" value={form.availability} onChange={handleChange}
-                placeholder="Mon-Fri" style={s.input} required />
-            </div>
-          </div>
-          <div style={s.btnRow}>
-            <button type="submit" style={s.btnGreen}>
-              {editId ? "Update Doctor" : "Add Doctor"}
-            </button>
-            {editId && (
-              <button type="button" onClick={handleCancel} style={s.btnGray}>
-                Cancel
-              </button>
+            
+            <Card>
+                <div style={{ padding: "14px 20px", borderBottom: "1px solid #f0f2f5" }}>
+                    <input
+                        type="text"
+                        placeholder="🔍 Search by name or specialization..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        style={{ width: "100%", padding: "10px 14px", borderRadius: 40, border: "1.5px solid #e9edf2", fontSize: 13, outline: "none", fontFamily: "inherit" }}
+                    />
+                </div>
+                {loading ? <Loading /> : <Table cols={columns} rows={filtered} emptyMsg="No doctors found" />}
+            </Card>
+            
+            {modalOpen && (
+                <Modal title={editId ? "✏️ Edit Doctor" : "🩺 New Doctor"} onClose={() => setModalOpen(false)}>
+                    <form onSubmit={submit}>
+                        <div style={{ display: "grid", gap: 14 }}>
+                            <Input label="Full Name *" required value={form.name} onChange={e => updateField("name", e.target.value)} placeholder="Dr. John Silva" />
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                <Input label="Specialization *" required value={form.specialization} onChange={e => updateField("specialization", e.target.value)} placeholder="Cardiology" />
+                                <Input label="Experience (Yrs) *" type="number" min="0" required value={form.experience} onChange={e => updateField("experience", e.target.value)} placeholder="5" />
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                <Input label="Contact *" required value={form.contact} onChange={e => updateField("contact", e.target.value)} placeholder="0771234567" />
+                                <Input label="Email *" type="email" required value={form.email} onChange={e => updateField("email", e.target.value)} placeholder="doctor@hospital.com" />
+                            </div>
+                            <Input label="Availability *" required value={form.availability} onChange={e => updateField("availability", e.target.value)} placeholder="Mon-Fri, 9AM-5PM" />
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24 }}>
+                            <Btn variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Btn>
+                            <Btn type="submit">{editId ? "Update Doctor" : "Add Doctor"}</Btn>
+                        </div>
+                    </form>
+                </Modal>
             )}
-          </div>
-        </form>
-      </div>
-
-      {/* ── SEARCH ── */}
-      <div style={s.searchRow}>
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search by specialization..."
-          style={{ ...s.input, flex: 1 }}
-          onKeyDown={e => e.key === "Enter" && handleSearch()}
-        />
-        <button onClick={handleSearch} style={s.btnBlue}>Search</button>
-        <button onClick={() => { setSearch(""); fetchDoctors(); }} style={s.btnGray}>Reset</button>
-      </div>
-
-      {/* ── TABLE ── */}
-      <div style={s.card}>
-        <h2 style={s.cardTitle}>👨‍⚕️ All Doctors ({doctors.length})</h2>
-        {loading ? (
-          <p style={{ textAlign: "center", color: "#718096" }}>Loading...</p>
-        ) : doctors.length === 0 ? (
-          <p style={{ textAlign: "center", color: "#718096" }}>No doctors found.</p>
-        ) : (
-          <div style={s.tableWrap}>
-            <table style={s.table}>
-              <thead>
-                <tr style={s.thead}>
-                  <th style={s.th}>#</th>
-                  <th style={s.th}>Name</th>
-                  <th style={s.th}>Specialization</th>
-                  <th style={s.th}>Contact</th>
-                  <th style={s.th}>Email</th>
-                  <th style={s.th}>Exp.</th>
-                  <th style={s.th}>Availability</th>
-                  <th style={s.th}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {doctors.map((d, i) => (
-                  <tr key={d.id} style={i % 2 === 0 ? s.rowEven : s.rowOdd}>
-                    <td style={s.td}>{i + 1}</td>
-                    <td style={s.td}>{d.name}</td>
-                    <td style={s.td}>
-                      <span style={s.badge}>{d.specialization}</span>
-                    </td>
-                    <td style={s.td}>{d.contact}</td>
-                    <td style={s.td}>{d.email}</td>
-                    <td style={s.td}>{d.experience} yrs</td>
-                    <td style={s.td}>{d.availability}</td>
-                    <td style={s.td}>
-                      <div style={s.actionRow}>
-                        <button onClick={() => handleView(d.id)} style={s.btnSm("#3182ce")}>View</button>
-                        <button onClick={() => handleEdit(d)}    style={s.btnSm("#d69e2e")}>Edit</button>
-                        <button onClick={() => handleDelete(d.id)} style={s.btnSm("#e53e3e")}>Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* ── VIEW MODAL ── */}
-      {viewDoctor && (
-        <div style={s.overlay} onClick={() => setViewDoctor(null)}>
-          <div style={s.modal} onClick={e => e.stopPropagation()}>
-            <h2 style={s.cardTitle}>👨‍⚕️ Doctor Details</h2>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <tbody>
-                {Object.entries(viewDoctor).filter(([k]) => k !== "id").map(([k, v]) => (
-                  <tr key={k}>
-                    <td style={s.modalKey}>{k.replace("_", " ").toUpperCase()}</td>
-                    <td style={s.modalVal}>{v}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <button onClick={() => setViewDoctor(null)} style={{ ...s.btnGray, marginTop: 16, width: "100%" }}>
-              Close
-            </button>
-          </div>
         </div>
-      )}
-    </div>
-  );
+    );
 }
-
-// ── Styles ──
-const s = {
-  page:      { maxWidth: 1100, margin: "0 auto", padding: 24, fontFamily: "Segoe UI, Arial, sans-serif", background: "#f7fafc", minHeight: "100vh" },
-  title:     { textAlign: "center", color: "#1a365d", fontSize: 30, marginBottom: 20 },
-  alert:     { padding: "12px 20px", borderRadius: 8, marginBottom: 16, fontWeight: "bold", textAlign: "center" },
-  card:      { background: "white", borderRadius: 12, padding: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.08)", marginBottom: 20 },
-  cardTitle: { color: "#2d3748", fontSize: 18, marginBottom: 16, borderBottom: "2px solid #ebf8ff", paddingBottom: 8 },
-  form:      { display: "flex", flexDirection: "column", gap: 16 },
-  grid:      { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 },
-  field:     { display: "flex", flexDirection: "column", gap: 4 },
-  label:     { fontSize: 13, fontWeight: "600", color: "#4a5568" },
-  input:     { padding: "10px 14px", borderRadius: 8, border: "1px solid #cbd5e0", fontSize: 14, outline: "none" },
-  btnRow:    { display: "flex", gap: 10 },
-  btnGreen:  { padding: "10px 24px", background: "#38a169", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: "bold", fontSize: 14 },
-  btnGray:   { padding: "10px 24px", background: "#718096", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: "bold", fontSize: 14 },
-  btnBlue:   { padding: "10px 20px", background: "#3182ce", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: "bold" },
-  searchRow: { display: "flex", gap: 10, marginBottom: 20, alignItems: "center" },
-  tableWrap: { overflowX: "auto" },
-  table:     { width: "100%", borderCollapse: "collapse", fontSize: 14 },
-  thead:     { background: "#ebf8ff" },
-  th:        { padding: "12px 14px", textAlign: "left", color: "#2b6cb0", fontWeight: "700", whiteSpace: "nowrap" },
-  td:        { padding: "11px 14px", color: "#4a5568" },
-  rowEven:   { background: "#ffffff" },
-  rowOdd:    { background: "#f7fafc" },
-  badge:     { background: "#bee3f8", color: "#2b6cb0", padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: "bold" },
-  actionRow: { display: "flex", gap: 6 },
-  btnSm:     (bg) => ({ padding: "5px 12px", background: bg, color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: "bold" }),
-  overlay:   { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
-  modal:     { background: "white", borderRadius: 12, padding: 28, width: 420, maxWidth: "90%" },
-  modalKey:  { padding: "8px 12px", fontWeight: "bold", color: "#4a5568", fontSize: 13, background: "#f7fafc", width: "40%" },
-  modalVal:  { padding: "8px 12px", color: "#2d3748", fontSize: 13 },
-};

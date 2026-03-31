@@ -20,7 +20,14 @@ export default function Dashboard() {
             try {
                 const response = await fetch(`${GW}/${svc.endpoint}`);
                 const data = await response.json();
-                const arr = data[svc.key] || [];
+                let arr = [];
+                if (Array.isArray(data)) {
+                    arr = data;
+                } else if (data && Array.isArray(data.data)) {
+                    arr = data.data;
+                } else if (data && Array.isArray(data[svc.key])) {
+                    arr = data[svc.key];
+                }
                 setCounts(prev => ({ ...prev, [svc.endpoint]: arr.length }));
                 setStatuses(prev => ({ ...prev, [svc.endpoint]: "up" }));
             } catch {
@@ -35,7 +42,7 @@ export default function Dashboard() {
                 <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Dashboard</h2>
                 <p style={{ color: "#5b6e8c", fontSize: 13 }}>System overview & service health</p>
             </div>
-            
+
             <div style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
@@ -53,7 +60,7 @@ export default function Dashboard() {
                     />
                 ))}
             </div>
-            
+
             <div style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
@@ -85,22 +92,22 @@ export default function Dashboard() {
                                         statuses[svc.endpoint] === "up"
                                             ? "Online"
                                             : statuses[svc.endpoint] === "down"
-                                            ? "Offline"
-                                            : "Checking..."
+                                                ? "Offline"
+                                                : "Checking..."
                                     }
                                     color={
                                         statuses[svc.endpoint] === "up"
                                             ? "#10b981"
                                             : statuses[svc.endpoint] === "down"
-                                            ? "#ef4444"
-                                            : "#f59e0b"
+                                                ? "#ef4444"
+                                                : "#f59e0b"
                                     }
                                 />
                             </div>
                         ))}
                     </div>
                 </Card>
-                
+
                 <Card>
                     <div style={{ padding: "20px 24px", borderBottom: "1px solid #eff3f6", fontWeight: 700 }}>
                         ⚙️ Architecture

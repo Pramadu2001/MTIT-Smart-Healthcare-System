@@ -27,9 +27,9 @@ appointments_col = None
 @app.on_event("startup")
 def startup_db():
     global client, db, appointments_col
-    uri = "mongodb+srv://chalaninethranjali:Chalani123@cluster0.qm4u1kx.mongodb.net/?appName=Cluster0"
+    uri = "mongodb+srv://healthadmin:healthadmin@healthcare-microservice.5rmmjnt.mongodb.net/healthcare_db?retryWrites=true&w=majority&tls=true"
     client = MongoClient(uri)
-    db = client["healthcare"]
+    db = client["healthcare_db"]
     appointments_col = db["appointments"]
 
 @app.on_event("shutdown")
