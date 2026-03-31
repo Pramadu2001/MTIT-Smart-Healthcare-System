@@ -14,29 +14,21 @@ export function useApi(endpoint) {
             const response = await fetch(`${GW}/${endpoint}`);
             const data = await response.json();
             
-            // Handle different service response formats
+            // Services return plain arrays directly.
+            // Fall back to named key if the service wraps the response.
             let records = [];
-            switch (endpoint) {
-                case "patients":
-                    records = data.patients || [];
-                    break;
-                case "doctors":
-                    records = data.doctors || [];
-                    break;
-                case "appointments":
-                    records = data.appointments || [];
-                    break;
-                case "prescriptions":
-                    records = data.prescriptions || [];
-                    break;
-                case "lab-results":
-                    records = data.results || [];
-                    break;
-                case "payments":
-                    records = data.payments || [];
-                    break;
-                default:
-                    records = data;
+            if (Array.isArray(data)) {
+                records = data;
+            } else {
+                switch (endpoint) {
+                    case "patients":      records = data.patients      || []; break;
+                    case "doctors":       records = data.doctors       || []; break;
+                    case "appointments":  records = data.appointments  || []; break;
+                    case "prescriptions": records = data.prescriptions || []; break;
+                    case "lab-results":   records = data.results       || []; break;
+                    case "payments":      records = data.payments      || []; break;
+                    default:              records = data;
+                }
             }
             
             setData(Array.isArray(records) ? records : []);
