@@ -1,256 +1,125 @@
-from flask import Flask, jsonify, request
-from flask_pymongo import PyMongo
-from flask_cors import CORS
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from pymongo import MongoClient
 from bson import ObjectId
 from bson.errors import InvalidId
 from datetime import datetime
-from flasgger import Swagger
+from typing import Optional
 
-app = Flask(__name__)
-CORS(app)
+app = FastAPI(
+    title="Payment Service API",
+    description="Healthcare Payment Management API",
+    version="1.0.0"
+)
 
-app.config["SWAGGER"] = {
-    "title": "Payment Service API",
-    "uiversion": 3
-}
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-app.config["MONGO_URI"] = "mongodb+srv://MTIT:MTIT123456@cluster1.ddh6mzk.mongodb.net/healthcareDB?retryWrites=true&w=majority"
+client = None
+db = None
+payments_col = None
 
-swagger = Swagger(app)
-mongo = PyMongo(app)
+@app.on_event("startup")
+def startup_db():
+    global client, db, payments_col
+    uri = "mongodb+srv://MTIT:MTIT123456@cluster1.ddh6mzk.mongodb.net/healthcareDB?retryWrites=true&w=majority"
+    client = MongoClient(uri)
+    db = client["healthcareDB"]  
+    payments_col = db["payments"]
 
+@app.on_event("shutdown")
+def shutdown_db():
+    if client:
+        client.close()
 
-def format_doc(doc):
-    doc["_id"] = str(doc["_id"])
-    if "created_at" in doc and doc["created_at"]:
+# Pydantic Schemas
+class PaymentCreate(BaseModel):
+    patient_id: str
+    amount: float = 0.0
+    method: str = "cash"
+    status: str = "pending"
+
+class PaymentUpdate(BaseModel):
+    patient_id: Optional[str] = None
+    amount: Optional[float] = None
+    method: Optional[str] = None
+    status: Optional[str] = None
+
+# Helper to format object ID
+def serialize(doc):
+    if not doc: return None
+    doc["id"] = str(doc.get("_id"))
+    doc.pop("_id", None)
+    if "created_at" in doc and hasattr(doc["created_at"], "isoformat"):
         doc["created_at"] = doc["created_at"].isoformat()
     return doc
 
+def parse_object_id(id_str: str) -> ObjectId:
+    try:
+        return ObjectId(id_str)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid payment ID")
 
-@app.route("/")
+@app.get("/", tags=["Health"])
 def home():
-    return "Payment Service Running on Port 5006"
+    return {"message": "Payment Service Running on Port 8006"}
 
-
-@app.route("/payments", methods=["GET"])
+@app.get("/payments", tags=["Payments"], summary="Get all payments")
 def get_payments():
-    """
-    Get all payments
-    ---
-    tags:
-      - Payments
-    responses:
-      200:
-        description: List of payments
-    """
-    payments = mongo.db.payments.find()
-    return jsonify({"payments": [format_doc(p) for p in payments]}), 200
+    payments = [serialize(p) for p in payments_col.find()]
+    return {"payments": payments}
 
-
-@app.route("/payments", methods=["POST"])
-def add_payment():
-    """
-    Create a new payment
-    ---
-    tags:
-      - Payments
-    parameters:
-      - in: body
-        name: body
-        required: true
-        schema:
-          type: object
-          required:
-            - patient_id
-          properties:
-            patient_id:
-              type: string
-              example: "P123"
-            amount:
-              type: number
-              example: 500
-            method:
-              type: string
-              example: "card"
-            status:
-              type: string
-              example: "pending"
-    responses:
-      201:
-        description: Payment created successfully
-      400:
-        description: patient_id is required
-    """
-    data = request.get_json()
-
-    if not data or not data.get("patient_id"):
-        return jsonify({"error": "patient_id is required"}), 400
-
-    payment = {
-        "patient_id": data.get("patient_id"),
-        "amount": data.get("amount", 0),
-        "method": data.get("method", "cash"),
-        "status": data.get("status", "pending"),
-        "created_at": datetime.utcnow()
-    }
-
-    result = mongo.db.payments.insert_one(payment)
-
-    return jsonify({
+@app.post("/payments", status_code=201, tags=["Payments"], summary="Create a new payment")
+def add_payment(payment: PaymentCreate):
+    data = payment.model_dump()
+    data["created_at"] = datetime.utcnow()
+    result = payments_col.insert_one(data)
+    return {
         "message": "Payment created successfully",
         "id": str(result.inserted_id)
-    }), 201
+    }
 
+@app.get("/payments/patient/{patient_id}", tags=["Payments"], summary="Get payments by patient ID")
+def get_payments_by_patient(patient_id: str):
+    payments = [serialize(p) for p in payments_col.find({"patient_id": patient_id})]
+    return {"payments": payments}
 
-@app.route("/payments/patient/<patient_id>", methods=["GET"])
-def get_payments_by_patient(patient_id):
-    """
-    Get payments by patient ID
-    ---
-    tags:
-      - Payments
-    parameters:
-      - name: patient_id
-        in: path
-        type: string
-        required: true
-        description: Patient ID
-    responses:
-      200:
-        description: Payments list
-    """
-    payments = mongo.db.payments.find({"patient_id": patient_id})
-    return jsonify({"payments": [format_doc(p) for p in payments]}), 200
+@app.get("/payments/{id}", tags=["Payments"], summary="Get payment by ID")
+def get_payment_by_id(id: str):
+    oid = parse_object_id(id)
+    payment = payments_col.find_one({"_id": oid})
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    return serialize(payment)
 
+@app.put("/payments/{id}", tags=["Payments"], summary="Update payment")
+def update_payment(id: str, payment_update: PaymentUpdate):
+    oid = parse_object_id(id)
+    update_data = {k: v for k, v in payment_update.model_dump().items() if v is not None}
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No valid fields provided")
 
-@app.route("/payments/<id>", methods=["GET"])
-def get_payment_by_id(id):
-    """
-    Get payment by ID
-    ---
-    tags:
-      - Payments
-    parameters:
-      - name: id
-        in: path
-        type: string
-        required: true
-        description: MongoDB Payment ID
-    responses:
-      200:
-        description: Payment found
-      400:
-        description: Invalid payment ID
-      404:
-        description: Payment not found
-    """
-    try:
-        payment = mongo.db.payments.find_one({"_id": ObjectId(id)})
-        if not payment:
-            return jsonify({"error": "Payment not found"}), 404
-        return jsonify(format_doc(payment)), 200
-    except InvalidId:
-        return jsonify({"error": "Invalid payment ID"}), 400
+    result = payments_col.update_one({"_id": oid}, {"$set": update_data})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    
+    return {"message": "Payment updated successfully"}
 
-
-@app.route("/payments/<id>", methods=["PUT"])
-def update_payment(id):
-    """
-    Update payment
-    ---
-    tags:
-      - Payments
-    parameters:
-      - name: id
-        in: path
-        type: string
-        required: true
-        description: MongoDB Payment ID
-      - in: body
-        name: body
-        required: true
-        schema:
-          type: object
-          properties:
-            amount:
-              type: number
-              example: 750
-            method:
-              type: string
-              example: "online"
-            status:
-              type: string
-              example: "completed"
-    responses:
-      200:
-        description: Payment updated successfully
-      400:
-        description: Invalid payment ID or empty body
-      404:
-        description: Payment not found
-    """
-    try:
-        data = request.get_json()
-
-        if not data:
-            return jsonify({"error": "No data provided"}), 400
-
-        allowed_fields = ["amount", "method", "status", "patient_id"]
-        update_data = {key: value for key, value in data.items() if key in allowed_fields}
-
-        if not update_data:
-            return jsonify({"error": "No valid fields provided"}), 400
-
-        result = mongo.db.payments.update_one(
-            {"_id": ObjectId(id)},
-            {"$set": update_data}
-        )
-
-        if result.matched_count == 0:
-            return jsonify({"error": "Payment not found"}), 404
-
-        return jsonify({"message": "Payment updated successfully"}), 200
-
-    except InvalidId:
-        return jsonify({"error": "Invalid payment ID"}), 400
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/payments/<id>", methods=["DELETE"])
-def delete_payment(id):
-    """
-    Delete payment
-    ---
-    tags:
-      - Payments
-    parameters:
-      - name: id
-        in: path
-        type: string
-        required: true
-        description: MongoDB Payment ID
-    responses:
-      200:
-        description: Payment deleted successfully
-      400:
-        description: Invalid payment ID
-      404:
-        description: Payment not found
-    """
-    try:
-        result = mongo.db.payments.delete_one({"_id": ObjectId(id)})
-
-        if result.deleted_count == 0:
-            return jsonify({"error": "Payment not found"}), 404
-
-        return jsonify({"message": "Payment deleted successfully"}), 200
-
-    except InvalidId:
-        return jsonify({"error": "Invalid payment ID"}), 400
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+@app.delete("/payments/{id}", tags=["Payments"], summary="Delete payment")
+def delete_payment(id: str):
+    oid = parse_object_id(id)
+    result = payments_col.delete_one({"_id": oid})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    return {"message": "Payment deleted successfully"}
 
 if __name__ == "__main__":
-    app.run(port=8006, debug=True)
+    import uvicorn
+    uvicorn.run("app:app", host="0.0.0.0", port=8006)
